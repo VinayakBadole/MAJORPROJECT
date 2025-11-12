@@ -4,39 +4,32 @@ on:
   schedule:
     # Run every 5 days at 2:00 AM UTC (projects pause after ~7 days of inactivity)
     - cron: '0 2 */5 * *'
-  workflow_dispatch: # Allow manual trigger from GitHub UI
+  workflow_dispatch:
 
 jobs:
-  ping-supabase:
+  keep-alive:
     runs-on: ubuntu-latest
-    
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
-      
-      - name: Keep Supabase Active
+
+      - name: Ping Supabase table (keep_alive)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
-          echo "Pinging Supabase to keep project active..."
-          
-          # Simple health check
-          response=$(curl -s -o /dev/null -w "%{http_code}" \
+          set -e
+          echo "Pinging Supabase table keep_alive..."
+          # Replace keep_alive with a real table name; select a small column and limit 1
+          resp=$(curl -s -o /dev/null -w "%{http_code}" \
             -X GET \
-            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
             -H "Content-Type: application/json" \
-            "${{ secrets.SUPABASE_URL }}/rest/v1/")
-          
-          echo "Response code: $response"
-          
-          if [ $response -eq 200 ] || [ $response -eq 404 ] || [ $response -eq 401 ]; then
-            echo "✅ Supabase project is active!"
-          else
-            echo "❌ Unexpected response code: $response"
+            "${SUPABASE_URL}/rest/v1/keep_alive?select=id&limit=1")
+          echo "HTTP response: $resp"
+          if [ "$resp" != "200" ]; then
+            echo "Unexpected response $resp — check RLS / table permissions / keys"
             exit 1
           fi
-          
-          # Optional: Ping a specific table (uncomment and modify if needed)
-          # curl -X GET \
-          #   -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-          #   -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
-          #   "${{ secrets.SUPABASE_URL }}/rest/v1/User?select=id&limit=1"
+          echo "✅ Pinged table successfully"
